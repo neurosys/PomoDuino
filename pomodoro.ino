@@ -3,6 +3,196 @@
  
 // select the pins used on the LCD panel
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+
+class PomoTime
+{
+    private:
+    long int start_moment;
+    long int time_passed_in_pause;
+    long int total_duration;
+    long int target_duration;
+    long int last_request;
+    bool is_paused;
+    bool is_started;
+    char buf[9];
+
+    public:
+    PomoTime();
+    void Start();
+    void Pause();
+    void Resume();
+    void SetTargetDuration(byte hours, byte minutes, byte seconds);
+    const char* GetTimeStr();
+    int GetPercentPassed();
+    long int GetPassedTime();
+    long int Timestamp();
+    bool IsFinished();
+    bool IsChanged();
+    bool IsStarted();
+    int GetSeconds();
+    int GetMinutes();
+    int GetHours(); 
+    void SplitInDigits(byte val, char* buf);
+    void Print();
+};
+
+PomoTime::PomoTime()
+{
+    start_moment = 0;
+    time_passed_in_pause = 0;
+    total_duration = 0;
+    is_paused = true;
+    last_request = 0;
+    is_started = false;
+}
+
+void PomoTime::Start()
+{
+    start_moment = Timestamp();
+    total_duration = 0;
+    time_passed_in_pause = 0;
+    is_paused = false;
+    last_request = 0;
+    is_started = true;
+}
+
+void PomoTime::Pause()
+{
+    if (is_paused == false && is_started)
+    {
+        Serial.print("Pause:\n");
+        time_passed_in_pause = Timestamp();
+        total_duration += time_passed_in_pause - start_moment;
+        is_paused = true;
+    }
+}
+
+void PomoTime::Resume()
+{
+    if (is_paused && is_started)
+    {
+        start_moment = Timestamp();
+        is_paused = false;
+    }
+}
+
+int PomoTime::GetPercentPassed()
+{
+    return GetPassedTime() / target_duration;
+}
+
+long int PomoTime::GetPassedTime()
+{
+    long int now = Timestamp();
+    return now - start_moment + total_duration;
+}
+
+long int PomoTime::Timestamp()
+{
+    return millis() / 1000;
+}
+
+void PomoTime::SetTargetDuration(byte hours, byte minutes, byte seconds)
+{
+    target_duration = hours * 3600 + minutes * 60 + seconds;
+}
+
+bool PomoTime::IsFinished()
+{
+    if (target_duration >= GetPassedTime())
+    {
+        return true;
+    }
+    return false;
+}
+
+int PomoTime::GetSeconds()
+{
+    return GetPassedTime() % 60;
+}
+
+int PomoTime::GetMinutes()
+{
+    return (GetPassedTime() / 60) % 60;
+}
+
+int PomoTime::GetHours()
+{
+    return GetPassedTime() / 3600;
+}
+
+void PomoTime::SplitInDigits(byte val, char* buf)
+{
+    buf[1] = val % 10 + '0'; 
+    buf[0] = val / 10 + '0';
+}
+
+bool PomoTime::IsChanged()
+{
+    if (last_request == GetPassedTime())
+    {
+        //Serial.print("IsChanged: Did not change\n");
+        return false;
+    }
+    else
+    { 
+        //Serial.print("IsChanged::Changed\n");
+        last_request = GetPassedTime();
+        return true;
+    }
+}
+
+bool PomoTime::IsStarted()
+{
+    return is_started;
+}
+
+const char* PomoTime::GetTimeStr()
+{
+    if (is_started && !is_paused && IsChanged())
+    {
+        return buf;
+    }
+    SplitInDigits(GetHours(), buf); 
+    buf[2] = ':';
+    SplitInDigits(GetMinutes(), buf + 3); 
+    buf[5] = ':';
+    SplitInDigits(GetSeconds(), buf + 6); 
+    buf[8] = '\0';
+    /*
+    Serial.print("GetTimeStr(): ");
+    Serial.print(buf);
+    Serial.print("\n");
+    */
+    return buf;
+}
+
+void PomoTime::Print()
+{
+    Serial.print(" start_moment = ");
+    Serial.print(start_moment);
+
+    Serial.print(" time_passed_in_pause = ");
+    Serial.print(time_passed_in_pause);
+
+    Serial.print(" total_duration = ");
+    Serial.print(total_duration);
+
+    Serial.print(" target_duration = ");
+    Serial.print(target_duration);
+
+    Serial.print(" last_request = ");
+    Serial.print(last_request);
+
+    Serial.print(" is_paused = ");
+    Serial.print(is_paused);
+
+    Serial.print(" buf = '");
+    Serial.print(buf);
+    Serial.print("' GetPassedTime() = ");
+    Serial.print(GetPassedTime());
+    Serial.print("\n");
+}
  
 // define some values used by the panel and buttons
 int lcd_key     = 0;
@@ -17,7 +207,9 @@ int adc_key_in  = 0;
 // read the buttons
 int read_LCD_buttons()
 {
-    adc_key_in = analogRead(0);      // read the value from the sensor 
+    adc_key_in = analogRead(0);
+    delay(50);
+    adc_key_in = analogRead(0);
     // my buttons when read are centered at these valies: 0, 144, 329, 504, 741
     // we add approx 50 to those values and check to see if we are close
     if (adc_key_in > 1000) return btnNONE; // We make this the 1st option for speed reasons since it will be the most likely result
@@ -29,126 +221,103 @@ int read_LCD_buttons()
     return btnNONE;  // when all others fail, return this...
 }
 
-long int GetSecondsPassed()
-{
-    return millis() / 1000;
-}
+PomoTime timer;
 
-long int GetSeconds()
-{
-    return GetSecondsPassed() % 60;
-}
-
-long int GetMinutes()
-{
-    return (GetSecondsPassed() / 60) % 60;
-}
-
-long int GetHours()
-{
-    return GetSecondsPassed() / 60 / 60;
-}
-
-char* GetTime()
-{
-    static char time_str[9]; // 23:59:59\0
-   
-    int seconds = GetSeconds();
-    time_str[8] = '\0';
-    time_str[2] = ':';
-    time_str[5] = ':';
-    if (seconds < 10)
-    {
-        time_str[7] = seconds + '0'; 
-        time_str[6] = '0';
-    }
-    else
-    { 
-        time_str[7] = seconds % 10 + '0';
-        time_str[6] = seconds / 10 + '0';
-    }
-    int minutes = GetMinutes();
-    if (minutes < 10)
-    {
-        time_str[4] = minutes + '0'; 
-        time_str[3] = '0';
-    }
-    else
-    { 
-        time_str[4] = minutes % 10 + '0';
-        time_str[3] = minutes / 10 + '0';
-    }
-    int hours = GetHours();
-    if (hours < 10)
-    {
-        time_str[1] = hours + '0'; 
-        time_str[0] = '0';
-    }
-    else
-    { 
-        time_str[1] = hours % 10 + '0';
-        time_str[0] = hours / 10 + '0';
-    }
-    Serial.print(time_str);
-    Serial.print("\n");
-    return time_str;
-}
- 
 void setup()
 {
- lcd.begin(16, 2);              // start the library
- Serial.begin(9600);
- lcd.setCursor(0,1);
- lcd.print("Started"); // print a simple message
+    lcd.begin(16, 2);              // start the library
+    Serial.begin(9600);
+    lcd.setCursor(0,1);
+    lcd.print("Started"); // print a simple message
 }
+
+int counter = 0;
   
 void loop()
 {
- lcd.setCursor(8,1);
- static int total_seconds = 0;
- if (total_seconds != GetSecondsPassed())
- {
-     lcd.print(GetTime());      // display seconds elapsed since power-up 
- }
- 
- 
- /*
- lcd.setCursor(0,1);            // move to the begining of the second line
- lcd_key = read_LCD_buttons();  // read the buttons
- 
- switch (lcd_key)               // depending on which button was pushed, we perform an action
- {
-   case btnRIGHT:
-     {
-     lcd.print("RIGHT ");
-     break;
-     }
-   case btnLEFT:
-     {
-     lcd.print("LEFT   ");
-     break;
-     }
-   case btnUP:
-     {
-     lcd.print("UP    ");
-     break;
-     }
-   case btnDOWN:
-     {
-     lcd.print("DOWN  ");
-     break;
-     }
-   case btnSELECT:
-     {
-     lcd.print("SELECT");
-     break;
-     }
-     case btnNONE:
-     {
-     lcd.print("NONE-x  ");
-     break;
-     }
- }
- */
- 
+    if (timer.IsStarted() && timer.IsChanged())
+    {
+        timer.Print();
+        lcd.setCursor(8,1);
+        lcd.print(timer.GetTimeStr());
+        counter++;
+        if (counter == 100)
+        {
+            timer.Pause();
+        }
+    }
+    
+    
+    lcd_key = read_LCD_buttons();  // read the buttons
+    switch(lcd_key)
+    {
+        case btnSELECT:
+        {
+            Serial.print("btnSELECT\n");
+            if (timer.IsStarted())
+            {
+                lcd.setCursor(0,0);
+                lcd.print("Pauza");
+                timer.Pause();
+                timer.Print();
+            }
+        }
+        break;
+        case btnLEFT:
+        {
+            Serial.print("btnLeft\n");
+            timer.Start();
+        }
+        break;
+        case btnRIGHT:
+        {
+            Serial.print("btnRight\n");
+            if (timer.IsStarted())
+            {
+                timer.Resume();
+            }
+        }
+    }
+
+    
+
+    /*
+       lcd.setCursor(0,1);            // move to the begining of the second line
+       lcd_key = read_LCD_buttons();  // read the buttons
+
+       switch (lcd_key)               // depending on which button was pushed, we perform an action
+       {
+       case btnRIGHT:
+       {
+       lcd.print("RIGHT ");
+       break;
+       }
+       case btnLEFT:
+       {
+       lcd.print("LEFT   ");
+       break;
+       }
+       case btnUP:
+       {
+       lcd.print("UP    ");
+       break;
+       }
+       case btnDOWN:
+       {
+       lcd.print("DOWN  ");
+       break;
+       }
+       case btnSELECT:
+       {
+       lcd.print("SELECT");
+       break;
+       }
+       case btnNONE:
+       {
+       lcd.print("NONE-x  ");
+       break;
+       }
+       }
+     */
+
 }
