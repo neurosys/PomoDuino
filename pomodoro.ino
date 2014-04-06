@@ -44,6 +44,15 @@ PomoTime::PomoTime()
     is_paused = true;
     last_request = 0;
     is_started = false;
+    buf[0] = '0';
+    buf[1] = '0';
+    buf[2] = ':';
+    buf[3] = '0';
+    buf[4] = '0';
+    buf[5] = ':';
+    buf[6] = '0';
+    buf[7] = '0';
+    buf[8] = '\0';
 }
 
 void PomoTime::Start()
@@ -149,7 +158,12 @@ bool PomoTime::IsStarted()
 
 const char* PomoTime::GetTimeStr()
 {
-    if (is_started && !is_paused && IsChanged())
+    Serial.print("GetTimeStr(): is_started = ");
+    Serial.print( is_started);
+    Serial.print(" is_paused = ");
+    Serial.print( is_paused );
+    Serial.print("\n"); 
+    if (is_started == false || is_paused == true)
     {
         return buf;
     }
