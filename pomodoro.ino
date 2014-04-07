@@ -1,8 +1,19 @@
-//Sample using LiquidCrystal library
 #include <LiquidCrystal.h>
  
-// select the pins used on the LCD panel
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+
+/*
+Bugs:
+    Progress bar needs to be one character to right
+    Clock stops at xx:xx:59
+    Percent counter doesn't stop
+    Percent counter '%' must not change position
+
+ToDo:
+    Second row should display:
+        * Paused, Started, Stoped
+    
+*/
 
 class PomoTime
 {
@@ -17,7 +28,7 @@ class PomoTime
     char buf[9];
 
     public:
-    PomoTime();
+    PomoTime(int hours = 0, int mins = 25, int secs = 0);
     void Start();
     void Pause();
     void Resume();
@@ -29,6 +40,7 @@ class PomoTime
     bool IsFinished();
     bool IsChanged();
     bool IsStarted();
+    bool IsPaused();
     int GetSeconds();
     int GetMinutes();
     int GetHours(); 
@@ -36,7 +48,7 @@ class PomoTime
     void Print();
 };
 
-PomoTime::PomoTime()
+PomoTime::PomoTime(int hours, int mins, int secs)
 {
     start_moment = 0;
     time_passed_in_pause = 0;
@@ -44,6 +56,7 @@ PomoTime::PomoTime()
     is_paused = true;
     last_request = 0;
     is_started = false;
+    SetTargetDuration(hours, mins, secs);
     buf[0] = '0';
     buf[1] = '0';
     buf[2] = ':';
@@ -67,7 +80,7 @@ void PomoTime::Start()
 
 void PomoTime::Pause()
 {
-    if (is_paused == false && is_started)
+    if (IsPaused() == false && is_started)
     {
         Serial.print("Pause:\n");
         time_passed_in_pause = Timestamp();
@@ -76,9 +89,14 @@ void PomoTime::Pause()
     }
 }
 
+bool PomoTime::IsPaused()
+{
+    return is_paused;
+}
+
 void PomoTime::Resume()
 {
-    if (is_paused && is_started)
+    if (IsPaused() && is_started)
     {
         start_moment = Timestamp();
         is_paused = false;
@@ -87,13 +105,17 @@ void PomoTime::Resume()
 
 int PomoTime::GetPercentPassed()
 {
-    return GetPassedTime() / target_duration;
+    return (GetPassedTime() * 100 / target_duration);
 }
 
 long int PomoTime::GetPassedTime()
 {
-    long int now = Timestamp();
-    return now - start_moment + total_duration;
+    long int now = Timestamp() - start_moment + total_duration;
+    if (now >= target_duration)
+    {
+        Pause();
+    }
+    return now;
 }
 
 long int PomoTime::Timestamp()
@@ -160,10 +182,10 @@ const char* PomoTime::GetTimeStr()
 {
     Serial.print("GetTimeStr(): is_started = ");
     Serial.print( is_started);
-    Serial.print(" is_paused = ");
-    Serial.print( is_paused );
+    Serial.print(" IsPaused() = ");
+    Serial.print( IsPaused() );
     Serial.print("\n"); 
-    if (is_started == false || is_paused == true)
+    if (is_started == false || IsPaused() == true)
     {
         return buf;
     }
@@ -195,11 +217,14 @@ void PomoTime::Print()
     Serial.print(" target_duration = ");
     Serial.print(target_duration);
 
+    Serial.print(" percent_passed = ");
+    Serial.print(GetPercentPassed());
+
     Serial.print(" last_request = ");
     Serial.print(last_request);
 
-    Serial.print(" is_paused = ");
-    Serial.print(is_paused);
+    Serial.print(" IsPaused() = ");
+    Serial.print(IsPaused());
 
     Serial.print(" buf = '");
     Serial.print(buf);
@@ -237,12 +262,62 @@ int read_LCD_buttons()
 
 PomoTime timer;
 
+char* GetProgressBar(int done)
+{
+    static char bar[11];
+    int percent_done = done / 10;
+    for (int i = 0; i < 11; i++)
+    {
+        if (i < percent_done)
+        {
+            bar[i] = '#';
+        }
+        else
+        {
+            bar[i] = ' ';
+        }
+    }
+    bar[10] = '\0';
+    return bar;
+}
+
+char* GetProgressCounter(int done)
+{
+    static char procent[] = {' ', '0', '0', '%'};
+    if (timer.IsPaused() == true)
+    {
+        return procent;
+    }
+    int i = 0;
+    if (done / 10 < 10)
+    {
+        i = 1;
+        procent[0] = ' ';
+    }
+    else
+    {
+        i = 1;
+        procent[0] = '1';
+    }
+    procent[i] = (done / 10) % 10 + '0';
+    procent[i+1] = done % 10 + '0';
+    procent[i+2] = '%';
+    procent[i+3] = '\0';
+
+    Serial.print("\nBibi ");
+    Serial.print(procent);
+    Serial.print("\n");
+    return procent;
+}
+
+
 void setup()
 {
     lcd.begin(16, 2);              // start the library
     Serial.begin(9600);
     lcd.setCursor(0,1);
     lcd.print("Started"); // print a simple message
+    timer.SetTargetDuration(0, 2, 0);
 }
 
 int counter = 0;
@@ -251,14 +326,13 @@ void loop()
 {
     if (timer.IsStarted() && timer.IsChanged())
     {
+        lcd.setCursor(0,0);
+        lcd.print(GetProgressCounter(timer.GetPercentPassed()));
+        lcd.setCursor(6, 0);
+        lcd.print(GetProgressBar(timer.GetPercentPassed()));
         timer.Print();
         lcd.setCursor(8,1);
         lcd.print(timer.GetTimeStr());
-        counter++;
-        if (counter == 100)
-        {
-            timer.Pause();
-        }
     }
     
     
@@ -292,46 +366,4 @@ void loop()
             }
         }
     }
-
-    
-
-    /*
-       lcd.setCursor(0,1);            // move to the begining of the second line
-       lcd_key = read_LCD_buttons();  // read the buttons
-
-       switch (lcd_key)               // depending on which button was pushed, we perform an action
-       {
-       case btnRIGHT:
-       {
-       lcd.print("RIGHT ");
-       break;
-       }
-       case btnLEFT:
-       {
-       lcd.print("LEFT   ");
-       break;
-       }
-       case btnUP:
-       {
-       lcd.print("UP    ");
-       break;
-       }
-       case btnDOWN:
-       {
-       lcd.print("DOWN  ");
-       break;
-       }
-       case btnSELECT:
-       {
-       lcd.print("SELECT");
-       break;
-       }
-       case btnNONE:
-       {
-       lcd.print("NONE-x  ");
-       break;
-       }
-       }
-     */
-
 }
