@@ -289,27 +289,13 @@ int read_LCD_buttons()
 
 PomoTime timer;
 
-char* GetProgressBar(int done)
-{
-    static char bar[11];
-    int percent_done = done / 10;
-    for (int i = 0; i < 11; i++)
-    {
-        if (i < percent_done)
-        {
-            bar[i] = '#';
-        }
-        else
-        {
-            bar[i] = ' ';
-        }
-    }
-    bar[10] = '\0';
-    return bar;
-}
 
 void PrintProgressBar(int done)
 {
+    if (!timer.IsStarted() || timer.IsPaused())
+    {
+        return;
+    }
     int percent_done = done / 10;
     static int old_percent = 0;
     if (old_percent != percent_done)
@@ -320,39 +306,11 @@ void PrintProgressBar(int done)
     }
 }
 
-char* GetProgressCounter(int done)
-{
-    static char procent[] = {' ', '0', '0', '%'};
-    if (timer.IsPaused())
-    {
-        return procent;
-    }
-    int i = 0;
-    if (done / 10 < 10)
-    {
-        i = 1;
-        procent[0] = ' ';
-    }
-    else
-    {
-        i = 1;
-        procent[0] = '1';
-    }
-    procent[i] = (done / 10) % 10 + '0';
-    procent[i+1] = done % 10 + '0';
-    procent[i+2] = '%';
-    procent[i+3] = '\0';
-
-    Serial.print("\nBibi ");
-    Serial.print(procent);
-    Serial.print("\n");
-    return procent;
-}
 
 void PrintPercentCounter(int done)
 {
     int pos = 0;
-    if (timer.IsPaused())
+    if (!timer.IsStarted() || timer.IsPaused())
     {
         return;
     }
@@ -387,21 +345,14 @@ void PrintStatus()
     lcd.print(timer.GetStateStr());
 }
 
-int counter = 0;
   
 void loop()
 {
     if (timer.IsStarted() && timer.IsChanged())
     {
-        /*
-        lcd.setCursor(0,0);
-        lcd.print(GetProgressCounter(timer.GetPercentPassed()));
-        */
         PrintPercentCounter(timer.GetPercentPassed());
-        //lcd.setCursor(6, 0);
-        //lcd.print(GetProgressBar(timer.GetPercentPassed()));
         PrintProgressBar(timer.GetPercentPassed());
-        timer.Print();
+        //timer.Print();
         lcd.setCursor(8,1);
         lcd.print(timer.GetTimeStr());
     }
