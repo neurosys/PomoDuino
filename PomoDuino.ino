@@ -308,6 +308,13 @@ char* GetProgressBar(int done)
     return bar;
 }
 
+void PrintProgressBar(int done)
+{
+    int percent_done = done / 10;
+    lcd.setCursor(6 + percent_done, 0);
+    lcd.print('#');
+}
+
 char* GetProgressCounter(int done)
 {
     static char procent[] = {' ', '0', '0', '%'};
@@ -342,7 +349,7 @@ void setup()
 {
     lcd.begin(16, 2);              // start the library
     Serial.begin(9600);
-    timer.SetTargetDuration(0, 2, 0);
+    timer.SetTargetDuration(0, 1, 0);
 }
 
 void PrintStatus()
@@ -359,8 +366,9 @@ void loop()
     {
         lcd.setCursor(0,0);
         lcd.print(GetProgressCounter(timer.GetPercentPassed()));
-        lcd.setCursor(6, 0);
-        lcd.print(GetProgressBar(timer.GetPercentPassed()));
+        //lcd.setCursor(6, 0);
+        //lcd.print(GetProgressBar(timer.GetPercentPassed()));
+        PrintProgressBar(timer.GetPercentPassed());
         timer.Print();
         lcd.setCursor(8,1);
         lcd.print(timer.GetTimeStr());
