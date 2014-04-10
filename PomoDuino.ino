@@ -345,6 +345,12 @@ void setup()
     timer.SetTargetDuration(0, 2, 0);
 }
 
+void PrintStatus()
+{
+    lcd.setCursor(0, 1);
+    lcd.print(timer.GetStateStr());
+}
+
 int counter = 0;
   
 void loop()
@@ -358,8 +364,6 @@ void loop()
         timer.Print();
         lcd.setCursor(8,1);
         lcd.print(timer.GetTimeStr());
-        lcd.setCursor(0, 1);
-        lcd.print(timer.GetStateStr());
     }
     
     
@@ -373,22 +377,25 @@ void loop()
             if (!timer.IsPaused())
             {
                 timer.Pause();
-                timer.Print();
+                //timer.Print();
+                PrintStatus();
             }
         }
         break;
         case btnLEFT:
         {
-            Serial.print("btnLeft\n");
+            //Serial.print("btnLeft\n");
             timer.Start();
+            PrintStatus();
         }
         break;
         case btnRIGHT:
         {
-            Serial.print("btnRight\n");
+            //Serial.print("btnRight\n");
             if (timer.IsStarted())
             {
                 timer.Resume();
+                PrintStatus();
             }
         }
     }
