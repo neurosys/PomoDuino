@@ -2,13 +2,6 @@
  
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 
-/*
-Bugs:
-    Clock stops at xx:xx:59
-    Pause doesn't work anymore
-    
-*/
-
 void PrintStatus();
 void UpdateDisplay(bool forced);
 
@@ -369,7 +362,7 @@ void setup()
 {
     lcd.begin(16, 2);              // start the library
     Serial.begin(9600);
-    timer.SetTargetDuration(0, 1, 0);
+    timer.SetTargetDuration(0, 25, 0);
 } 
   
 void loop()
