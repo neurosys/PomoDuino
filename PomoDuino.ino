@@ -311,8 +311,13 @@ char* GetProgressBar(int done)
 void PrintProgressBar(int done)
 {
     int percent_done = done / 10;
-    lcd.setCursor(6 + percent_done, 0);
-    lcd.print('#');
+    static int old_percent = 0;
+    if (old_percent != percent_done)
+    {
+        old_percent = percent_done;
+        lcd.setCursor(5 + percent_done, 0);
+        lcd.print('#');
+    }
 }
 
 char* GetProgressCounter(int done)
@@ -344,6 +349,30 @@ char* GetProgressCounter(int done)
     return procent;
 }
 
+void PrintPercentCounter(int done)
+{
+    int pos = 0;
+    if (timer.IsPaused())
+    {
+        return;
+    }
+    if (done == 100)
+    {
+        pos = 0;
+    }
+    else if (done >= 10)
+    {
+        pos = 1; 
+    }
+    else
+    {
+        pos = 2;
+    }
+    lcd.setCursor(pos,0);
+    lcd.print(done);
+    lcd.print('%');
+}
+
 
 void setup()
 {
@@ -364,8 +393,11 @@ void loop()
 {
     if (timer.IsStarted() && timer.IsChanged())
     {
+        /*
         lcd.setCursor(0,0);
         lcd.print(GetProgressCounter(timer.GetPercentPassed()));
+        */
+        PrintPercentCounter(timer.GetPercentPassed());
         //lcd.setCursor(6, 0);
         //lcd.print(GetProgressBar(timer.GetPercentPassed()));
         PrintProgressBar(timer.GetPercentPassed());
