@@ -9,6 +9,9 @@ Bugs:
     
 */
 
+void PrintStatus();
+void UpdateDisplay(bool forced);
+
 class PomoTime
 {
     private:
@@ -32,7 +35,7 @@ class PomoTime
     void Resume();
     void Stop();
     void SetTargetDuration(byte hours, byte minutes, byte seconds);
-    const char* GetTimeStr();
+    const char* GetTimeStr(bool forced = false);
     int GetPercentPassed();
     long int GetPassedTime();
     long int Timestamp();
@@ -126,6 +129,8 @@ void PomoTime::Resume()
 void PomoTime::Stop()
 {
     status = stopped;
+    PrintStatus();
+    UpdateDisplay(true);
 }
 
 int PomoTime::GetPercentPassed()
@@ -135,11 +140,14 @@ int PomoTime::GetPercentPassed()
 
 long int PomoTime::GetPassedTime()
 {
-    long int now = Timestamp() - start_moment + total_duration;
-    if (now >= target_duration)
+    static long int now = 0;
+    if (IsStarted() && !IsPaused())
     {
-        //Pause();
-        Stop();
+        now = Timestamp() - start_moment + total_duration;
+        if (now >= target_duration)
+        {
+            Stop();
+        }
     }
     return now;
 }
@@ -205,16 +213,21 @@ bool PomoTime::IsStarted()
     //return is_started;
 }
 
-const char* PomoTime::GetTimeStr()
+const char* PomoTime::GetTimeStr(bool forced)
 {
+    /*
     Serial.print("GetTimeStr(): is_started = ");
     Serial.print( IsStarted());
     Serial.print(" IsPaused() = ");
     Serial.print( IsPaused() );
     Serial.print("\n"); 
-    if (!IsStarted() || IsPaused())
+    */
+    if (forced == false)
     {
-        return buf;
+        if (!IsStarted() || IsPaused())
+        {
+            return buf;
+        }
     }
     SplitInDigits(GetHours(), buf); 
     buf[2] = ':';
@@ -290,11 +303,14 @@ int read_LCD_buttons()
 PomoTime timer;
 
 
-void PrintProgressBar(int done)
+void PrintProgressBar(int done, bool forced = false)
 {
-    if (!timer.IsStarted() || timer.IsPaused())
+    if (forced == false)
     {
-        return;
+        if (!timer.IsStarted() || timer.IsPaused())
+        {
+            return;
+        }
     }
     int percent_done = done / 10;
     static int old_percent = 0;
@@ -307,12 +323,15 @@ void PrintProgressBar(int done)
 }
 
 
-void PrintPercentCounter(int done)
+void PrintPercentCounter(int done, bool forced = false)
 {
     int pos = 0;
-    if (!timer.IsStarted() || timer.IsPaused())
+    if (forced == false)
     {
-        return;
+        if (!timer.IsStarted() || timer.IsPaused())
+        {
+            return;
+        }
     }
     if (done == 100)
     {
@@ -331,30 +350,33 @@ void PrintPercentCounter(int done)
     lcd.print('%');
 }
 
-
-void setup()
-{
-    lcd.begin(16, 2);              // start the library
-    Serial.begin(9600);
-    timer.SetTargetDuration(0, 1, 0);
-}
-
 void PrintStatus()
 {
     lcd.setCursor(0, 1);
     lcd.print(timer.GetStateStr());
 }
 
+void UpdateDisplay(bool forced = false)
+{
+    PrintPercentCounter(timer.GetPercentPassed(), forced);
+    PrintProgressBar(timer.GetPercentPassed(), forced);
+    //timer.Print();
+    lcd.setCursor(8,1);
+    lcd.print(timer.GetTimeStr(forced));
+} 
+
+void setup()
+{
+    lcd.begin(16, 2);              // start the library
+    Serial.begin(9600);
+    timer.SetTargetDuration(0, 1, 0);
+} 
   
 void loop()
 {
-    if (timer.IsStarted() && timer.IsChanged())
+    if (timer.IsStarted() && timer.IsChanged() && !timer.IsPaused())
     {
-        PrintPercentCounter(timer.GetPercentPassed());
-        PrintProgressBar(timer.GetPercentPassed());
-        //timer.Print();
-        lcd.setCursor(8,1);
-        lcd.print(timer.GetTimeStr());
+        UpdateDisplay();
     }
     
     
@@ -365,17 +387,21 @@ void loop()
         case btnSELECT:
         {
             Serial.print("btnSELECT\n");
-            if (!timer.IsPaused())
+            if (timer.IsPaused())
+            {
+                timer.Resume();
+            }
+            else 
             {
                 timer.Pause();
-                //timer.Print();
-                PrintStatus();
             }
+            PrintStatus();
         }
         break;
         case btnLEFT:
         {
             //Serial.print("btnLeft\n");
+            lcd.clear();
             timer.Start();
             PrintStatus();
         }
